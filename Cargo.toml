@@ -1,0 +1,19 @@
+[package]
+name = "hwbp-rs"
+version = "0.1.0"
+authors = ["wildbook <book.wille@gmail.com>"]
+edition = "2018"
+
+[features]
+default = ["avoid_winapi"]
+avoid_winapi = []
+
+[dependencies.winapi]
+version = "^0.3"
+default-features = false
+features = ["std", "processthreadsapi", "excpt"]
+
+[dev-dependencies.winapi]
+version = "^0.3"
+default-features = false
+features = ["errhandlingapi"]
