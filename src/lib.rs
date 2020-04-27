@@ -144,16 +144,23 @@ impl HwbpContext {
 }
 
 impl HwbpContext {
-    pub unsafe fn get() -> Result<HwbpContext, HwbpError> {
-        let mut context: CONTEXT = std::mem::zeroed();
+    pub fn get() -> Result<HwbpContext, HwbpError> {
+        // We're creating a blank context and setting the ContextFlags field before passing it
+        // to GetThreadContext, which reads the field and returns the appropriate data
+        let mut context: CONTEXT = unsafe { std::mem::zeroed() };
         context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
 
-        match GetThreadContext(GetCurrentThread(), &mut context) {
+        match unsafe { GetThreadContext(GetCurrentThread(), &mut context) } {
             0 => Err(HwbpError::FailedGetThreadContext),
             _ => Ok(HwbpContext(context)),
         }
     }
 
+    /// # Safety
+    /// This function will never directly cause undefined behaviour, but the breakpoints it can be
+    /// used to place will cause exceptions to be thrown when they are hit. Calling this function
+    /// is therefore unsafe, as it might affect the program in unexpected ways if the caller doesn't
+    /// properly set up some form of exception handling.
     pub unsafe fn apply(&self) -> Result<(), HwbpError> {
         match SetThreadContext(GetCurrentThread(), &self.0) {
             0 => Err(HwbpError::FailedSetThreadContext),
@@ -271,6 +278,11 @@ pub mod raw {
 }
 
 impl HardwareBreakpoint {
+    /// # Safety
+    /// This function will never directly cause undefined behaviour, but the breakpoint it places
+    /// will for obvious reasons be a breakpoint, meaning it will cause an exception to be thrown
+    /// when it is hit. Calling this function is therefore unsafe, as it might affect the program
+    /// in unexpected ways if the caller doesn't properly set up some form of exception handling.
     pub unsafe fn set(&self) -> Result<(), HwbpError> {
         let mut context = HwbpContext::get()?;
         context.set_breakpoint(self);
