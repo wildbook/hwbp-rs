@@ -292,7 +292,7 @@ mod tests {
     use winapi::um::winnt::{LONG, PEXCEPTION_POINTERS};
     use winapi::vc::excpt::{EXCEPTION_CONTINUE_EXECUTION, EXCEPTION_CONTINUE_SEARCH};
 
-    static mut FLAG: [u8; 4] = [0, 0, 0, 0];
+    static mut FLAG: [u8; 8] = [0; 8];
     static mut FLAG_HITS: u32 = 0;
     static mut CLEAR_BP_ON_HIT: bool = false;
 
@@ -350,7 +350,7 @@ mod tests {
 
                 // Prepare and set the breakpoint
                 breakpoint.size = Size::One;
-                breakpoint.address = &FLAG as *const u8 as _;
+                breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::ReadWrite;
                 breakpoint.set().expect("failed to set read breakpoint");
 
@@ -379,7 +379,7 @@ mod tests {
 
                 // Prepare and set the breakpoint
                 breakpoint.size = Size::One;
-                breakpoint.address = &FLAG as *const u8 as _;
+                breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::Write;
                 breakpoint.set().expect("failed to set read breakpoint");
 
@@ -422,6 +422,20 @@ mod tests {
                 assert_eq!(FLAG_HITS, 1);
             }
 
+            // Used for the tests below
+            // We're using write_volatile as optimization can affect tests if it causes multiple
+            //   flags to be written at once
+            unsafe fn set_all_flags() {
+                write_volatile(&mut FLAG[0], 1);
+                write_volatile(&mut FLAG[1], 1);
+                write_volatile(&mut FLAG[2], 1);
+                write_volatile(&mut FLAG[3], 1);
+                write_volatile(&mut FLAG[4], 1);
+                write_volatile(&mut FLAG[5], 1);
+                write_volatile(&mut FLAG[6], 1);
+                write_volatile(&mut FLAG[7], 1);
+            }
+
             // --- Test Size::One
             {
                 // Prepare
@@ -430,15 +444,12 @@ mod tests {
 
                 // Prepare and set the breakpoint
                 breakpoint.size = Size::One;
-                breakpoint.address = &FLAG as *const u8 as _;
+                breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::Write;
                 breakpoint.set().expect("failed to set read breakpoint");
 
-                // Set all four bytes
-                write_volatile(&mut FLAG[0], 0);
-                write_volatile(&mut FLAG[1], 0);
-                write_volatile(&mut FLAG[2], 0);
-                write_volatile(&mut FLAG[3], 0);
+                // Trigger all flags
+                set_all_flags();
 
                 // Check that Size::One hits once
                 assert_eq!(FLAG_HITS, 1);
@@ -452,15 +463,14 @@ mod tests {
 
                 // Prepare and set the breakpoint
                 breakpoint.size = Size::Two;
-                breakpoint.address = &FLAG as *const u8 as _;
+                breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::Write;
                 breakpoint.set().expect("failed to set read breakpoint");
 
-                // Set all four bytes
-                write_volatile(&mut FLAG[0], 0);
-                write_volatile(&mut FLAG[1], 0);
-                write_volatile(&mut FLAG[2], 0);
-                write_volatile(&mut FLAG[3], 0);
+                // Trigger all flags
+                set_all_flags();
+
+                // Check that Size::Two hits once
                 assert_eq!(FLAG_HITS, 2);
             }
 
@@ -472,16 +482,35 @@ mod tests {
 
                 // Prepare and set the breakpoint
                 breakpoint.size = Size::Four;
-                breakpoint.address = &FLAG as *const u8 as _;
+                breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::Write;
                 breakpoint.set().expect("failed to set read breakpoint");
 
-                // Set all four bytes
-                write_volatile(&mut FLAG[0], 0);
-                write_volatile(&mut FLAG[1], 0);
-                write_volatile(&mut FLAG[2], 0);
-                write_volatile(&mut FLAG[3], 0);
+                // Trigger all flags
+                set_all_flags();
+
+                // Check that Size::Four hits once
                 assert_eq!(FLAG_HITS, 4);
+            }
+
+            // --- Test Size::Eight
+            #[cfg(target_pointer_width = "64")]
+            {
+                // Prepare
+                FLAG_HITS = 0;
+                CLEAR_BP_ON_HIT = false;
+
+                // Prepare and set the breakpoint
+                breakpoint.size = Size::Eight;
+                breakpoint.address = &FLAG as *const _ as _;
+                breakpoint.condition = Condition::Write;
+                breakpoint.set().expect("failed to set read breakpoint");
+
+                // Trigger all flags
+                set_all_flags();
+
+                // Check that Size::Eight hits once
+                assert_eq!(FLAG_HITS, 8);
             }
 
             // --- --- --- --- --- TESTS END HERE
