@@ -18,6 +18,13 @@ jobs:
           command: check
 
   test:
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+
     name: Test Suite
     runs-on: windows-latest
     steps:
@@ -25,7 +32,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}
           override: true
       - uses: actions-rs/cargo@v1
         with:
