@@ -4,6 +4,13 @@ name: Continuous integration
 
 jobs:
   check:
+    strategy:
+      matrix:
+        toolchain: [
+          "i686-pc-windows-msvc",
+          "x86_64-pc-windows-msvc",
+        ]
+
     name: Check
     runs-on: windows-latest
     steps:
@@ -12,12 +19,20 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          target: ${{ matrix.toolchain }}
           override: true
       - uses: actions-rs/cargo@v1
         with:
           command: check
 
   test:
+    strategy:
+      matrix:
+        toolchain: [
+          "i686-pc-windows-msvc",
+          "x86_64-pc-windows-msvc",
+        ]
+
     name: Test Suite
     runs-on: windows-latest
     steps:
@@ -26,12 +41,20 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          target: ${{ matrix.toolchain }}
           override: true
       - uses: actions-rs/cargo@v1
         with:
           command: test
 
   fmt:
+    strategy:
+      matrix:
+        toolchain: [
+          "i686-pc-windows-msvc",
+          "x86_64-pc-windows-msvc",
+        ]
+
     name: Rustfmt
     runs-on: windows-latest
     steps:
@@ -40,6 +63,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          target: ${{ matrix.toolchain }}
           override: true
       - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
@@ -48,6 +72,13 @@ jobs:
           args: --all -- --check
 
   clippy:
+    strategy:
+      matrix:
+        toolchain: [
+          "i686-pc-windows-msvc",
+          "x86_64-pc-windows-msvc",
+        ]
+
     name: Clippy
     runs-on: windows-latest
     steps:
@@ -56,6 +87,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          target: ${{ matrix.toolchain }}
           override: true
       - run: rustup component add clippy
       - uses: actions-rs/cargo@v1
