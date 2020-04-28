@@ -18,13 +18,6 @@ jobs:
           command: check
 
   test:
-    strategy:
-      matrix:
-        rust:
-          - stable
-          - beta
-          - nightly
-
     name: Test Suite
     runs-on: windows-latest
     steps:
