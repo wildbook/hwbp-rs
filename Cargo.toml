@@ -11,7 +11,7 @@ avoid_winapi = []
 [dependencies.winapi]
 version = "^0.3"
 default-features = false
-features = ["std", "processthreadsapi", "excpt"]
+features = ["std", "processthreadsapi"]
 
 [dev-dependencies.winapi]
 version = "^0.3"
