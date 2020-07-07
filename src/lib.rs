@@ -27,7 +27,7 @@ fn GetCurrentThread() -> HANDLE {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Condition {
     Execution = 0b00,
     Write = 0b01,
@@ -97,7 +97,7 @@ impl TryFrom<u8> for Index {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct HardwareBreakpoint {
     pub enabled: bool,
     pub index: Index,
