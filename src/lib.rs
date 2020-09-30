@@ -192,10 +192,10 @@ pub mod raw {
     use super::*;
 
     pub fn unused_breakpoint(context: &CONTEXT) -> Option<HardwareBreakpoint> {
-        [Index::First, Index::Second, Index::Third, Index::Fourth]
+        get_breakpoints(context)
             .iter()
-            .map(|&index| get_breakpoint(context, index))
             .find(|bp| !bp.enabled)
+            .copied()
     }
     pub fn set_breakpoint(context: &mut CONTEXT, bp: &HardwareBreakpoint) {
         let hwbp_index = bp.index as u8;
