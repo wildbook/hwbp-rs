@@ -270,10 +270,11 @@ pub mod raw {
         ]
     }
     pub fn clear(context: &mut CONTEXT) {
-        set_breakpoint(context, &HardwareBreakpoint::new(Index::First));
-        set_breakpoint(context, &HardwareBreakpoint::new(Index::Second));
-        set_breakpoint(context, &HardwareBreakpoint::new(Index::Third));
-        set_breakpoint(context, &HardwareBreakpoint::new(Index::Fourth));
+        context.Dr7 &= 0b00000000000000001111111100000000;
+        context.Dr0 = 0;
+        context.Dr1 = 0;
+        context.Dr2 = 0;
+        context.Dr3 = 0;
     }
 }
 
