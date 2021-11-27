@@ -135,6 +135,7 @@ impl Display for HwbpError {
     }
 }
 
+#[repr(align(16))]
 pub struct HwbpContext(CONTEXT);
 
 impl HwbpContext {
