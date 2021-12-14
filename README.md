@@ -5,6 +5,8 @@ Hardware Breakpoints for Windows
 
 `hwbp-rs` is a thin Rust wrapper around Windows' hardware breakpoint APIs.
 
+This crate is assuming that you are in user mode and not kernel mode, and all hardware breakpoints are per-thread.
+
 Examples
 ========
 
