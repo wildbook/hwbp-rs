@@ -326,6 +326,16 @@ impl HardwareBreakpoint {
         context.set_breakpoint(self);
         context.apply_rtl();
     }
+
+    pub fn unused() -> Result<Option<HardwareBreakpoint>, HwbpError> {
+        let context = HwbpContext::get()?;
+        Ok(context.unused_breakpoint())
+    }
+
+    pub fn unused_rtl() -> Option<HardwareBreakpoint> {
+        let context = HwbpContext::get_rtl();
+        context.unused_breakpoint()
+    }
 }
 
 #[cfg(test)]
@@ -429,7 +439,7 @@ mod tests {
                 breakpoint.size = Size::One;
                 breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::Write;
-                breakpoint.set().expect("failed to set read breakpoint");
+                breakpoint.set().expect("failed to set write breakpoint");
 
                 // Reading
                 {
@@ -461,7 +471,7 @@ mod tests {
                 breakpoint.size = Size::One;
                 breakpoint.address = nop as *const c_void as _;
                 breakpoint.condition = Condition::Execution;
-                breakpoint.set().expect("failed to set read breakpoint");
+                breakpoint.set().expect("failed to set exec breakpoint");
 
                 // Call the function
                 nop();
@@ -494,7 +504,7 @@ mod tests {
                 breakpoint.size = Size::One;
                 breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::Write;
-                breakpoint.set().expect("failed to set read breakpoint");
+                breakpoint.set().expect("failed to set write breakpoint");
 
                 // Trigger all flags
                 set_all_flags();
@@ -513,12 +523,12 @@ mod tests {
                 breakpoint.size = Size::Two;
                 breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::Write;
-                breakpoint.set().expect("failed to set read breakpoint");
+                breakpoint.set().expect("failed to set write breakpoint");
 
                 // Trigger all flags
                 set_all_flags();
 
-                // Check that Size::Two hits once
+                // Check that Size::Two hits twice
                 assert_eq!(FLAG_HITS, 2);
             }
 
@@ -532,12 +542,12 @@ mod tests {
                 breakpoint.size = Size::Four;
                 breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::Write;
-                breakpoint.set().expect("failed to set read breakpoint");
+                breakpoint.set().expect("failed to set write breakpoint");
 
                 // Trigger all flags
                 set_all_flags();
 
-                // Check that Size::Four hits once
+                // Check that Size::Four hits four times
                 assert_eq!(FLAG_HITS, 4);
             }
 
@@ -552,12 +562,12 @@ mod tests {
                 breakpoint.size = Size::Eight;
                 breakpoint.address = &FLAG as *const _ as _;
                 breakpoint.condition = Condition::Write;
-                breakpoint.set().expect("failed to set read breakpoint");
+                breakpoint.set().expect("failed to set write breakpoint");
 
                 // Trigger all flags
                 set_all_flags();
 
-                // Check that Size::Eight hits once
+                // Check that Size::Eight hits eight times
                 assert_eq!(FLAG_HITS, 8);
             }
 
