@@ -315,12 +315,22 @@ impl HardwareBreakpoint {
         context.apply()?;
         Ok(())
     }
+
+    /// # Safety
+    /// This function will never directly cause undefined behaviour, but the breakpoint it places
+    /// will for obvious reasons be a breakpoint, meaning it will cause an exception to be thrown
+    /// when it is hit. Calling this function is therefore unsafe, as it might affect the program
+    /// in unexpected ways if the caller doesn't properly set up some form of exception handling.
+    pub unsafe fn set_rtl(&self) {
+        let mut context = HwbpContext::get_rtl();
+        context.set_breakpoint(self);
+        context.apply_rtl();
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{Condition, HardwareBreakpoint, HwbpContext, Index, Size};
-    use std::panic;
     use std::{
         ffi::c_void,
         ptr::{null_mut, read_volatile, write_volatile},
