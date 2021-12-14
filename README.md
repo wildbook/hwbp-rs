@@ -31,7 +31,12 @@ unsafe extern "system" fn handler(ex: PEXCEPTION_POINTERS) -> LONG {
                 // Of course, if you *do* want to modify the current context (e.g. to have a hwbp
                 // set during the exception handler), you can just retrieve the current context
                 // like you normally would and ignore the advice above.
-                let mut context = HwbpContext::from_context(cr);
+                let mut context = HwbpContext::from_context(*cr);
+
+                // [Make any desired modifications to the context here.]
+
+                // And finally, overwrite the existing context with the modified one.
+                *cr = context.into_context();
 
                 // Clear the debug status register.
                 cr.Dr6 = 0;
