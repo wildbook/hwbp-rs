@@ -8,7 +8,7 @@ use std::{
     fmt::Display,
 };
 use winapi::um::processthreadsapi::{GetThreadContext, SetThreadContext};
-use winapi::um::winnt::{CONTEXT, CONTEXT_DEBUG_REGISTERS};
+use winapi::um::winnt::{RtlCaptureContext, RtlRestoreContext, CONTEXT, CONTEXT_DEBUG_REGISTERS};
 
 #[cfg(target_pointer_width = "64")]
 type WinAPIHatesUsize = u64;
@@ -145,15 +145,41 @@ impl HwbpContext {
 }
 
 impl HwbpContext {
+    /// Uses GetThreadContext.
     pub fn get() -> Result<HwbpContext, HwbpError> {
         // We're creating a blank context and setting the ContextFlags field before passing it
         // to GetThreadContext, which reads the field and returns the appropriate data
-        let mut context: CONTEXT = unsafe { std::mem::zeroed() };
-        context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+        let mut context: HwbpContext = unsafe { std::mem::zeroed() };
+        context.0.ContextFlags = CONTEXT_DEBUG_REGISTERS;
 
-        match unsafe { GetThreadContext(GetCurrentThread(), &mut context) } {
+        match unsafe { GetThreadContext(GetCurrentThread(), &mut context.0) } {
             0 => Err(HwbpError::FailedGetThreadContext),
-            _ => Ok(HwbpContext(context)),
+            _ => Ok(context),
+        }
+    }
+
+    /// Uses RtlCaptureContext.
+    pub fn get_rtl() -> HwbpContext {
+        // We're creating a blank context and setting the ContextFlags field before passing it
+        // to GetThreadContext, which reads the field and returns the appropriate data
+        let mut context: HwbpContext = unsafe { std::mem::zeroed() };
+        context.0.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+
+        unsafe { RtlCaptureContext(&mut context.0) };
+        context
+    }
+
+    /// # Safety
+    /// This function will never directly cause undefined behaviour, but the breakpoints it can be
+    /// used to place will cause exceptions to be thrown when they are hit. Calling this function
+    /// is therefore unsafe, as it might affect the program in unexpected ways if the caller doesn't
+    /// properly set up some form of exception handling.
+    ///
+    /// Uses SetThreadContext.
+    pub unsafe fn apply(&self) -> Result<(), HwbpError> {
+        match SetThreadContext(GetCurrentThread(), &self.0) {
+            0 => Err(HwbpError::FailedSetThreadContext),
+            _ => Ok(()),
         }
     }
 
@@ -162,11 +188,10 @@ impl HwbpContext {
     /// used to place will cause exceptions to be thrown when they are hit. Calling this function
     /// is therefore unsafe, as it might affect the program in unexpected ways if the caller doesn't
     /// properly set up some form of exception handling.
-    pub unsafe fn apply(&self) -> Result<(), HwbpError> {
-        match SetThreadContext(GetCurrentThread(), &self.0) {
-            0 => Err(HwbpError::FailedSetThreadContext),
-            _ => Ok(()),
-        }
+    ///
+    /// Uses RtlRestoreContext.
+    pub unsafe fn apply_rtl(&self) {
+        RtlRestoreContext(&self.0 as *const _ as *mut _, std::ptr::null_mut());
     }
 
     pub fn unused_breakpoint(&self) -> Option<HardwareBreakpoint> {
