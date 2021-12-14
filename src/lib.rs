@@ -142,6 +142,10 @@ impl HwbpContext {
     pub fn from_context(context: CONTEXT) -> HwbpContext {
         HwbpContext(context)
     }
+
+    pub fn into_context(self) -> CONTEXT {
+        self.0
+    }
 }
 
 impl HwbpContext {
