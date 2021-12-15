@@ -5,8 +5,10 @@ authors = ["wildbook <book.wille@gmail.com>"]
 edition = "2018"
 
 [features]
-default = ["avoid_winapi"]
-avoid_winapi = []
+default = []
+
+[dependencies]
+ntapi = { version = "0.3.6", optional = true }
 
 [dependencies.winapi]
 version = "^0.3"

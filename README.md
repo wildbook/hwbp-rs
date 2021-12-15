@@ -5,12 +5,62 @@ Hardware Breakpoints for Windows
 
 `hwbp-rs` is a thin Rust wrapper around Windows' hardware breakpoint APIs.
 
+For a general primer on hardware breakpoints, see [this great article](https://ling.re/hardware-breakpoints/) by ling.re / LingSec.
+
 This crate is assuming that you are in user mode and not kernel mode, and all hardware breakpoints are per-thread.
+
+Documentation
+=============
+
+To open the documentation, run `cargo doc -p hwbp --open` after adding the `hwbp` crate to your `Cargo.toml`.
 
 Examples
 ========
+Using `HardwareBreakpoint`:
+```rs
+// Construct a `HardwareBreakpoint` representing the first hwbp.
+let hwbp = HardwareBreakpoint::first();
 
-Setting up an exception handler:
+// Or just get any unused one, if you don't want to manage them yourself.
+let hwbp = HardwareBreakpoint::unused()
+    .expect("failed to get context")
+    .expect("all breakpoints are in use");
+
+// Configure the breakpoint.
+hwbp.with_size(Size::One)
+    .with_condition(Condition::ReadWrite)
+    .with_address(0 as *const ())
+    // And finally, enable it.
+    .enable()
+    .expect("failed to enable hwbp");
+```
+
+If you want to modify an existing `CONTEXT`, or modify multiple breakpoints at once, you can use an
+instance of `HwbpContext` instead of `HardwareBreakpoint`. It gives you a bit more control over the
+breakpoints, but it's also more verbose:
+```rs
+// Get a context by calling one of these two:
+// Get a `HwbpContext`.
+let mut context = HwbpContext::get()
+    .expect("failed to get context");
+
+// Get the first unused breakpoint.
+let breakpoint = context.unused_breakpoint()
+    .expect("all breakpoints are in use")
+    // Configure the breakpoint.
+    .with_size(Size::One)
+    .with_condition(Condition::ReadWrite)
+    .with_address(0 as *const ())
+    .with_enabled(true); // <- Don't forget this one!
+
+// Write the modified breakpoint to the context.
+context.set_breakpoint(breakpoint);
+
+// And finally, apply the context.
+context.apply().expect("failed to apply context");
+```
+
+You'll most likely also want to handle the resulting exceptions, which you can do like this:
 ```rs
 // The example below assumes you're using `winapi-rs` or `windows-sys` or similar.
 // This library on its own does not provide a way to manage exception handlers.
@@ -22,103 +72,45 @@ unsafe extern "system" fn handler(ex: PEXCEPTION_POINTERS) -> LONG {
 
         if let (Some(cr), Some(er)) = (cr, er) {
             if er.ExceptionCode == EXCEPTION_SINGLE_STEP {
-                // Since we're in an exception handler, the context record in `cr` is going to be
-                // applied when we return `EXCEPTION_CONTINUE_EXECUTION`.
-                // 
-                // If you want to modify hardware breakpoints in here, make sure to create the 
+                // Since we're in an exception handler, the context record in `cr` is going to
+                // be applied when we return `EXCEPTION_CONTINUE_EXECUTION`.
+                //
+                // If you want to modify hardware breakpoints in here, make sure to create the
                 // context by passing `cr` to `HwbpContext::from_context` instead of capturing
                 // and modifying our current context. Modifying the current context will only
                 // affect the current context, which will be thrown away when `cr` is applied.
-                // 
-                // Of course, if you *do* want to modify the current context (e.g. to have a hwbp
-                // set during the exception handler), you can just retrieve the current context
-                // like you normally would and ignore the advice above.
+                //
+                // Of course, if you *do* want to modify the current context (e.g. to have a
+                // hwbp set during the exception handler), you can just retrieve the current
+                // context like you normally would and ignore the advice above.
                 let mut context = HwbpContext::from_context(*cr);
+
+                // Reset the debug status register.
+                // This is especially important if you're using HwbpContext::breakpoint_by_dr6.
+                let dr6 = reset_dr6(cr);
+
+                // Retrieve the breakpoint that triggered the exception.
+                let hwbp = context.breakpoint_by_dr6(dr6);
 
                 // [Make any desired modifications to the context here.]
 
                 // And finally, overwrite the existing context with the modified one.
                 *cr = context.into_context();
 
-                // Clear the debug status register.
-                cr.Dr6 = 0;
-
                 return EXCEPTION_CONTINUE_EXECUTION;
             }
         }
     }
-
     EXCEPTION_CONTINUE_SEARCH
 }
 
 // Register the exception handler.
 let veh = AddVectoredExceptionHandler(1, Some(handler as _));
-assert_ne!(veh, 0, "failed to add exception handler");
+assert_ne!(veh, std::ptr::null_mut(), "failed to add exception handler");
 
 // [Playing with breakpoints here is left as an exercise for the reader.]
 
 // Remove the exception handler again.
 let res = RemoveVectoredExceptionHandler(veh);
 assert_ne!(res, 0, "failed to remove exception handler");
-```
-
-Using `HardwareBreakpoint`:
-```rs
-// Create or retrieve a `HardwareBreakpoint` instance through either of these functions:
-
-// Create a `HardwareBreakpoint` representing the first hwbp.
-let mut breakpoint = HardwareBreakpoint::new(Index::First);
-// Get the first unused hwbp by calling `RtlCaptureContext`.
-let mut breakpoint = HardwareBreakpoint::unused_rtl()
-    .expect("all breakpoints are in use");
-// Get the first unused hwbp by calling `GetThreadContext`.
-let mut breakpoint = HardwareBreakpoint::unused()
-    .expect("failed to get context")
-    .expect("all breakpoints are in use");
-
-// Configure the breakpoint.
-breakpoint.size = Size::One;
-breakpoint.enabled = true;
-breakpoint.address = ...;
-breakpoint.condition = Condition::ReadWrite;
-
-// Then set it using one of these:
-
-// Set the breakpoint using `GetThreadContext` and `SetThreadContext`.
-breakpoint.set().expect("failed to set breakpoint");
-// Set the breakpoint using `RtlCaptureContext` and `RtlRestoreContext`.
-breakpoint.set_rtl();
-
-// You can also write it to a `HwbpContext` by calling `HwbpContext::set_breakpoint(&breakpoint)`.
-```
-
-Using `HwbpContext`:
-```rs
-// Get a context by calling one of these two:
-
-// Get a `HwbpContext` by calling `RtlGetContext`.
-let mut context = HwbpContext::get_rtl();
-// Get a `HwbpContext` by calling `GetThreadContext`.
-let mut context = HwbpContext::get()
-    .expect("failed to get context");
-
-// Get the first unused breakpoint.
-let mut breakpoint = context.unused_breakpoint()
-    .expect("all breakpoints are in use");
-
-// Configure the breakpoint.
-breakpoint.enabled = true;
-breakpoint.address = ...;
-breakpoint.condition = ...;
-
-// Write the modified breakpoint to the context.
-context.set_breakpoint(&breakpoint);
-
-// Then to apply the context again, call either of the following:
-
-// Apply the context using `RtlRestoreContext`.
-context.apply_rtl();
-// Apply the context using `SetThreadContext`.
-context.apply()
-    .expect("failed to apply context");
 ```
