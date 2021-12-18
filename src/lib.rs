@@ -88,6 +88,10 @@
 //!
 //!         if let (Some(cr), Some(er)) = (cr, er) {
 //!             if er.ExceptionCode == EXCEPTION_SINGLE_STEP {
+//!                 // Reset the debug status register.
+//!                 // This is especially important if you're using HwbpContext::breakpoint_by_dr6.
+//!                 let dr6 = reset_dr6(cr);
+//!
 //!                 // Since we're in an exception handler, the context record in `cr` is going to
 //!                 // be applied when we return `EXCEPTION_CONTINUE_EXECUTION`.
 //!                 //
@@ -100,10 +104,6 @@
 //!                 // hwbp set during the exception handler), you can just retrieve the current
 //!                 // context like you normally would and ignore the advice above.
 //!                 let mut context = HwbpContext::from_context(*cr);
-//!
-//!                 // Reset the debug status register.
-//!                 // This is especially important if you're using HwbpContext::breakpoint_by_dr6.
-//!                 let dr6 = reset_dr6(cr);
 //!
 //!                 // Retrieve the breakpoint that triggered the exception.
 //!                 let hwbp = context.breakpoint_by_dr6(dr6);
