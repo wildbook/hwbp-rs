@@ -14,13 +14,13 @@ To open the documentation, run `cargo doc -p hwbp --open` after adding the `hwbp
 
 Examples
 ========
-Using `HardwareBreakpoint`:
+Using `Hwbp`:
 ```rs
-// Construct a `HardwareBreakpoint` representing the first hwbp.
-let hwbp = HardwareBreakpoint::first();
+// Construct a `Hwbp` representing the first hwbp.
+let hwbp = Hwbp::first();
 
 // Or just get any unused one, if you don't want to manage them yourself.
-let hwbp = HardwareBreakpoint::unused()
+let hwbp = Hwbp::unused()
     .expect("failed to get context")
     .expect("all breakpoints are in use");
 
@@ -34,7 +34,7 @@ hwbp.with_size(Size::One)
 ```
 
 If you want to modify an existing `CONTEXT`, or modify multiple breakpoints at once, you can use an
-instance of `HwbpContext` instead of `HardwareBreakpoint`. It gives you a bit more control over the
+instance of `HwbpContext` instead of `Hwbp`. It gives you a bit more control over the
 breakpoints, but it's also more verbose:
 ```rs
 // Get a context by calling one of these two:

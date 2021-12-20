@@ -1,15 +1,9 @@
 use winapi::um::winnt::CONTEXT;
 
-use crate::{Condition, HardwareBreakpoint, Index, Size, WinAPIHatesUsize};
+use crate::{registers::Dr7, Hwbp, Index};
 
 /// Writes a breakpoint to the provided context.
-pub fn set_breakpoint(context: &mut CONTEXT, bp: HardwareBreakpoint) {
-    let hwbp_index = bp.index as WinAPIHatesUsize;
-    let stat_offset = 2 * hwbp_index;
-    let info_offset = 4 * hwbp_index + 16;
-    let cond_offset = info_offset;
-    let size_offset = info_offset + 2;
-
+pub fn set_breakpoint(context: &mut CONTEXT, bp: Hwbp) {
     *match bp.index {
         Index::First => &mut context.Dr0,
         Index::Second => &mut context.Dr1,
@@ -17,26 +11,17 @@ pub fn set_breakpoint(context: &mut CONTEXT, bp: HardwareBreakpoint) {
         Index::Fourth => &mut context.Dr3,
     } = bp.address as _;
 
-    let cond = bp.condition as WinAPIHatesUsize;
-    let size = bp.size.as_bits() as WinAPIHatesUsize;
-
-    // Clear and write condition and size
-    context.Dr7 &= !(0b1111 << info_offset);
-    context.Dr7 |= (cond & 0b11) << cond_offset;
-    context.Dr7 |= (size & 0b11) << size_offset;
-
-    // Clear and write enabled flag
-    context.Dr7 &= !(1 << stat_offset);
-    context.Dr7 |= (bp.enabled as WinAPIHatesUsize) << stat_offset;
+    // Set the condition, size, and enabled bits.
+    context.Dr7 = Dr7(context.Dr7 as _)
+        .with_size(bp.index, bp.size)
+        .with_condition(bp.index, bp.condition)
+        .with_enabled_local(bp.index, bp.enabled)
+        .0 as _;
 }
 
 /// Reads a breakpoint from the provided context.
-pub fn get_breakpoint(context: &CONTEXT, index: Index) -> HardwareBreakpoint {
-    let hwbp_index = index as u8;
-    let stat_offset = 2 * hwbp_index;
-    let cond_offset = 4 * hwbp_index + 16;
-    let size_offset = 4 * hwbp_index + 18;
-
+#[must_use]
+pub fn get_breakpoint(context: &CONTEXT, index: Index) -> Hwbp {
     let address = match index {
         Index::First => context.Dr0,
         Index::Second => context.Dr1,
@@ -44,23 +29,18 @@ pub fn get_breakpoint(context: &CONTEXT, index: Index) -> HardwareBreakpoint {
         Index::Fourth => context.Dr3,
     } as _;
 
-    let size = Size::from_bits((context.Dr7 >> size_offset & 0b11) as u8)
-        .expect("Can not be hit since all patterns & 0b11 are valid.");
-
-    let cond = Condition::from_bits((context.Dr7 >> cond_offset & 0b11) as u8)
-        .expect("Can not be hit since all patterns & 0b11 are valid.");
-
-    HardwareBreakpoint {
-        enabled: context.Dr7 & (1 << stat_offset) != 0,
+    let dr7 = Dr7(context.Dr7 as _);
+    Hwbp {
+        enabled: dr7.enabled_local(index),
         index,
         address,
-        size,
-        condition: cond,
+        size: dr7.size(index),
+        condition: dr7.condition(index),
     }
 }
 
 /// Returns a currently unused breakpoint, unless all are already in-use.
-pub fn unused_breakpoint(context: &CONTEXT) -> Option<HardwareBreakpoint> {
+pub fn unused_breakpoint(context: &CONTEXT) -> Option<Hwbp> {
     get_breakpoints(context).find(|bp| !bp.enabled)
 }
 
@@ -70,7 +50,7 @@ pub fn unused_breakpoint(context: &CONTEXT) -> Option<HardwareBreakpoint> {
 pub fn get_breakpoints_by_address<'a, T: 'a>(
     context: &'a CONTEXT,
     address: *const T,
-) -> impl Iterator<Item = HardwareBreakpoint> + 'a {
+) -> impl Iterator<Item = Hwbp> + 'a {
     get_breakpoints(context).filter(move |x| unsafe {
         let from = x.address.cast::<u8>();
         let to = from.add(x.size.in_bytes());
@@ -79,14 +59,15 @@ pub fn get_breakpoints_by_address<'a, T: 'a>(
 }
 
 /// Returns all breakpoints.
-pub fn get_breakpoints(context: &CONTEXT) -> impl Iterator<Item = HardwareBreakpoint> + '_ {
-    IntoIterator::into_iter([Index::First, Index::Second, Index::Third, Index::Fourth])
+pub fn get_breakpoints(context: &CONTEXT) -> impl Iterator<Item = Hwbp> + '_ {
+    [Index::First, Index::Second, Index::Third, Index::Fourth]
+        .into_iter()
         .map(move |idx| get_breakpoint(context, idx))
 }
 
 /// Fully clear any currently set breakpoints.
 pub fn clear_breakpoints(context: &mut CONTEXT) {
-    context.Dr7 &= 0b00000000000000001111111100000000;
+    context.Dr7 = Dr7(context.Dr7 as _).clear_breakpoints().0 as _;
     context.Dr0 = 0;
     context.Dr1 = 0;
     context.Dr2 = 0;
