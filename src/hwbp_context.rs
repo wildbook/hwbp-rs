@@ -8,7 +8,7 @@ use winapi::um::winnt::{CONTEXT, CONTEXT_DEBUG_REGISTERS};
 use crate::{
     context::{ApplyContext, ApplyWith, FetchContext, FetchWith},
     raw,
-    registers::{Dr6, Dr7},
+    registers::{Dr6, Dr7, EFlags},
     Hwbp, HwbpError, Index, PseudoUsize,
 };
 
@@ -188,5 +188,13 @@ impl<C: BorrowMut<CONTEXT>> HwbpContext<C> {
 
     pub fn dr7_mut(&mut self) -> Dr7<&mut PseudoUsize> {
         Dr7(&mut self.0.borrow_mut().Dr7)
+    }
+
+    pub fn eflags(&self) -> EFlags<u32> {
+        EFlags(self.0.borrow().EFlags)
+    }
+
+    pub fn eflags_mut(&mut self) -> EFlags<&mut u32> {
+        EFlags(&mut self.0.borrow_mut().EFlags)
     }
 }

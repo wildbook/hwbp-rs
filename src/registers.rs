@@ -1,10 +1,64 @@
 use crate::{Condition, Index, Size};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
+pub struct EFlags<T>(pub T);
+
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Dr6<T>(pub T);
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Dr7<T>(pub T);
+
+macro_rules! impl_eflags {
+    ($( $type:ty ),* ) => {$(
+        impl EFlags<$type> {
+            #[inline(always)] fn read(&self) -> $type { self.0 }
+            #[inline(always)] fn write(&mut self, value: $type) { self.0 = value; }
+        }
+
+        impl EFlags<&mut $type> {
+            #[inline(always)] fn read(&self) -> $type { *self.0 }
+            #[inline(always)] fn write(&mut self, value: $type) { *self.0 = value; }
+        }
+
+        impl EFlags<&$type> {
+            #[inline(always)] fn read(&self) -> $type { *self.0 }
+        }
+
+        impl_eflags!(@READ  $type => $type, &mut $type, &$type);
+        impl_eflags!(@WRITE $type => $type, &mut $type);
+    )*};
+
+    (@READ $inner_type:ty => $( $type:ty ),*) => {$(
+        impl EFlags<$type> {
+            /// Returns whether the trap flag is set.
+            #[must_use]
+            pub fn trap(&self) -> bool {
+                self.read() & 1 << 8 != 0
+            }
+
+            /// Returns whether the resume flag is set.
+            #[must_use]
+            pub fn resume(&self) -> bool {
+                self.read() & 1 << 16 != 0
+            }
+        }
+    )*};
+
+    (@WRITE $inner_type:ty => $( $type:ty ),*) => {$(
+        impl EFlags<$type> {
+            /// Sets the trap flag.
+            pub fn set_trap(&mut self, value: bool) {
+                self.write(self.read() | (value as $inner_type) << 8);
+            }
+
+            /// Sets the resume flag.
+            pub fn set_resume(&mut self, value: bool) {
+                self.write(self.read() | (value as $inner_type) << 16);
+            }
+        }
+    )*};
+}
 
 macro_rules! impl_dr6 {
     ($( $type:ty ),* ) => {$(
@@ -208,5 +262,6 @@ macro_rules! impl_dr7 {
     )*};
 }
 
+impl_eflags!(u32);
 impl_dr6!(usize, u32, u64);
 impl_dr7!(usize, u32, u64);
