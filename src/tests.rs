@@ -1,4 +1,4 @@
-use crate::{context, Condition, Hwbp, HwbpContext, Size};
+use crate::{Condition, Hwbp, HwbpContext, Size};
 use std::ptr::{null_mut, read_volatile, write_volatile};
 use winapi::um::errhandlingapi::{AddVectoredExceptionHandler, RemoveVectoredExceptionHandler};
 use winapi::um::minwinbase::EXCEPTION_SINGLE_STEP;
@@ -15,17 +15,19 @@ unsafe extern "system" fn handler(ex: PEXCEPTION_POINTERS) -> LONG {
         let er = ex.ExceptionRecord.as_mut();
 
         if let (Some(cr), Some(er)) = (cr, er) {
-            if er.ExceptionCode == EXCEPTION_SINGLE_STEP {
-                // If we want to clear the breakpoint when it's hit, do so
-                if CLEAR_BP_ON_HIT {
-                    crate::raw::clear_breakpoints(cr);
-                }
+            let mut ctx = HwbpContext::from_context(cr);
 
+            if er.ExceptionCode == EXCEPTION_SINGLE_STEP {
                 // Increase flag hits by one
                 FLAG_HITS += 1;
 
+                // If we want to clear the breakpoint when it's hit, do so
+                if CLEAR_BP_ON_HIT {
+                    ctx.clear_breakpoints();
+                }
+
                 // Reset the debug status
-                context::reset_dr6(cr);
+                ctx.dr6_mut().reset();
 
                 return EXCEPTION_CONTINUE_EXECUTION;
             }
@@ -45,7 +47,7 @@ fn breakpoint_hits() {
         assert_ne!(veh, null_mut());
 
         // Clear all hardware breakpoints to ensure there's none set
-        HwbpContext::get().unwrap().clear();
+        HwbpContext::get().unwrap().clear_breakpoints();
 
         // --- --- --- --- --- TESTS START HERE
 
@@ -237,7 +239,7 @@ fn breakpoint_hits() {
         // --- --- --- --- --- TESTS END HERE
 
         // Clear any leftover breakpoints
-        HwbpContext::get().unwrap().clear();
+        HwbpContext::get().unwrap().clear_breakpoints();
 
         // Remove the exception handler
         RemoveVectoredExceptionHandler(veh);

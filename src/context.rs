@@ -84,16 +84,3 @@ impl ApplyContext for ApplyWith {
         }
     }
 }
-
-/// Resets Dr6 and returns the previous value, leaving only bit 16 set.
-///
-/// Page 581 of [Intel® 64 and IA-32 Architectures Software Developer’s Manual Volume 3 (3A, 3B, 3C & 3D): System Programming Guide](https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-system-programming-manual-325384.pdf):
-///
-/// • **RTM (restricted transactional memory) flag (bit 16)** — Indicates (when **clear**) that a debug exception
-///   (#DB) or breakpoint exception (#BP) occurred inside an RTM region while advanced debugging of RTM trans-
-///   actional regions was enabled (see Section 17.3.3). This bit is set for any other debug exception (including all
-///   those that occur when advanced debugging of RTM transactional regions is not enabled). This bit is always 1 if
-///   the processor does not support RTM.
-pub fn reset_dr6(ctx: &mut CONTEXT) -> usize {
-    std::mem::replace(&mut ctx.Dr6, 1 << 16) as usize
-}

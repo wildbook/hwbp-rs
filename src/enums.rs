@@ -37,11 +37,11 @@ pub enum Index {
 impl Index {
     /// Returns the index of the breakpoint that triggered the current exception.
     ///
-    /// Keep in mind that `Dr6` is not guaranteed to be automatically cleared, so you should clear
+    /// Keep in mind that [`Dr6`] is not guaranteed to be automatically cleared, so you should clear
     /// it manually in your exception handler for it to contain useful information.
     ///
-    /// If `Dr6` does not have exactly one hwbp flag set, this function will return `None`.
-    pub fn by_dr6(dr6: usize) -> Option<Index> {
+    /// If [`Dr6`] does not have exactly one hwbp flag set, this function will return `None`.
+    pub fn by_dr6_value(dr6: usize) -> Option<Index> {
         match dr6 & 0b1111 {
             0b0001 => Some(Index::First),
             0b0010 => Some(Index::Second),

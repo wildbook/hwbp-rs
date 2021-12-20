@@ -81,15 +81,15 @@ unsafe extern "system" fn handler(ex: PEXCEPTION_POINTERS) -> LONG {
                 // Of course, if you *do* want to modify the current context (e.g. to have a
                 // hwbp set during the exception handler), you can just retrieve the current
                 // context like you normally would and ignore the advice above.
-                let mut context = HwbpContext::from_context(*cr);
+                let mut context = HwbpContext::from_context(cr);
 
-                // Retrieve the breakpoint that triggered the exception and reset `Dr6`.
-                let hwbp = context.breakpoint_by_dr6_reset();
+                // Retrieve the breakpoint(s) that triggered the exception.
+                let hwbp = context.breakpoints_by_dr6().next();
 
                 // [Make any desired modifications to the context here.]
-
-                // And finally, overwrite the existing context with the modified one.
-                *cr = context.into_context();
+                
+                // Reset the Dr6 register.
+                context.reset_dr6();
 
                 return EXCEPTION_CONTINUE_EXECUTION;
             }

@@ -99,7 +99,7 @@
 //!                 // Of course, if you *do* want to modify the current context (e.g. to have a
 //!                 // hwbp set during the exception handler), you can just retrieve the current
 //!                 // context like you normally would and ignore the advice above.
-//!                 let mut context = HwbpContext::from_context(*cr);
+//!                 let mut context = HwbpContext::from_context(cr);
 //!
 //!                 // Retrieve the breakpoint(s) that triggered the exception.
 //!                 let hwbp = context.breakpoints_by_dr6().next();
@@ -107,10 +107,7 @@
 //!                 // [Make any desired modifications to the context here.]
 //!
 //!                 // Reset the Dr6 register.
-//!                 context.reset_dr6();
-//!
-//!                 // And finally, overwrite the existing context with the modified one.
-//!                 *cr = context.into_context();
+//!                 context.dr6_mut().reset();
 //!
 //!                 return EXCEPTION_CONTINUE_EXECUTION;
 //!             }
@@ -152,10 +149,10 @@ pub use crate::hwbp_context::HwbpContext;
 use std::{error::Error, fmt::Display};
 
 #[cfg(target_pointer_width = "64")]
-type WinAPIHatesUsize = u64;
+type PseudoUsize = u64;
 
 #[cfg(target_pointer_width = "32")]
-type WinAPIHatesUsize = u32;
+type PseudoUsize = u32;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum HwbpError {
