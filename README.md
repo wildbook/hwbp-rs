@@ -70,10 +70,6 @@ unsafe extern "system" fn handler(ex: PEXCEPTION_POINTERS) -> LONG {
 
         if let (Some(cr), Some(er)) = (cr, er) {
             if er.ExceptionCode == EXCEPTION_SINGLE_STEP {
-                // Reset the debug status register.
-                // This is especially important if you're using HwbpContext::breakpoint_by_dr6.
-                let dr6 = reset_dr6(cr);
-
                 // Since we're in an exception handler, the context record in `cr` is going to
                 // be applied when we return `EXCEPTION_CONTINUE_EXECUTION`.
                 //
@@ -87,8 +83,8 @@ unsafe extern "system" fn handler(ex: PEXCEPTION_POINTERS) -> LONG {
                 // context like you normally would and ignore the advice above.
                 let mut context = HwbpContext::from_context(*cr);
 
-                // Retrieve the breakpoint that triggered the exception.
-                let hwbp = context.breakpoint_by_dr6(dr6);
+                // Retrieve the breakpoint that triggered the exception and reset `Dr6`.
+                let hwbp = context.breakpoint_by_dr6_reset();
 
                 // [Make any desired modifications to the context here.]
 

@@ -88,10 +88,6 @@
 //!
 //!         if let (Some(cr), Some(er)) = (cr, er) {
 //!             if er.ExceptionCode == EXCEPTION_SINGLE_STEP {
-//!                 // Reset the debug status register.
-//!                 // This is especially important if you're using HwbpContext::breakpoint_by_dr6.
-//!                 let dr6 = reset_dr6(cr);
-//!
 //!                 // Since we're in an exception handler, the context record in `cr` is going to
 //!                 // be applied when we return `EXCEPTION_CONTINUE_EXECUTION`.
 //!                 //
@@ -106,7 +102,7 @@
 //!                 let mut context = HwbpContext::from_context(*cr);
 //!
 //!                 // Retrieve the breakpoint that triggered the exception.
-//!                 let hwbp = context.breakpoint_by_dr6(dr6);
+//!                 let hwbp = context.breakpoint_by_dr6_reset();
 //!
 //!                 // [Make any desired modifications to the context here.]
 //!
@@ -132,12 +128,11 @@
 //! assert_ne!(res, 0, "failed to remove exception handler");
 //! # }
 //! ```
-mod context;
+pub mod context;
 pub mod raw;
-pub use context::{reset_dr6, ApplyWith, FetchWith};
 use winapi::um::winnt::CONTEXT;
 
-use context::{ApplyContext, FetchContext};
+use context::{ApplyContext, ApplyWith, FetchContext, FetchWith};
 use std::{convert::TryFrom, error::Error, ffi::c_void, fmt::Display};
 use winapi::um::winnt::CONTEXT_DEBUG_REGISTERS;
 
@@ -385,7 +380,7 @@ impl HwbpContext {
     /// Retrieves a `HwbpContext`.
     ///
     /// ```
-    /// # use hwbp::{HwbpContext, FetchWith};
+    /// # use hwbp::{HwbpContext, context::FetchWith};
     /// HwbpContext::get_with(FetchWith::GetThreadContext)
     ///     .expect("failed to get context");
     /// ```
@@ -412,7 +407,7 @@ impl HwbpContext {
 
         /// ```no_run
         /// # unsafe {
-        /// # use hwbp::{HwbpContext, ApplyWith};
+        /// # use hwbp::{HwbpContext, context::ApplyWith};
         /// # let mut ctx = HwbpContext::get().unwrap();
         /// ctx.apply_with(ApplyWith::SetThreadContext)
         ///     .expect("failed to apply context");
@@ -453,14 +448,39 @@ impl HwbpContext {
         raw::get_breakpoints_by_address(&self.0, address)
     }
 
-    /// Returns the breakpoint that triggered the current exception.
+    multidoc! {
+        /// Returns the breakpoint that triggered the current exception.
+        ///
+        /// Keep in mind that `Dr6` is not automatically reset, so you must reset it manually every
+        /// time a hardware breakpoint is hit for it to contain useful information. There's a
+        /// convenience function for this, [`HwbpContext::reset_dr6`].
+        ///
+        /// If `Dr6` does not have exactly one hwbp flag set, this function will return `None`.
+        /// This can happen if multiple breakpoints are triggered on the same instruction, or if the
+        /// `Dr6` register was not reset after a previous hwbp hit.
+        =>
+        pub fn breakpoint_by_dr6_value(&self, dr6: usize) -> Option<HardwareBreakpoint> {
+            Some(self.breakpoint(Index::by_dr6(dr6)?))
+        }
+
+        pub fn breakpoint_by_dr6(&self) -> Option<HardwareBreakpoint> {
+            Some(self.breakpoint(Index::by_dr6(self.0.Dr6 as _)?))
+        }
+    }
+
+    /// Resets `Dr6` and returns the breakpoint that triggered the current exception.
     ///
-    /// Keep in mind that `Dr6` is not automatically cleared, so you must clear it manually every
-    /// time a hardware breakpoint is hit for it to contain useful information.
-    ///
-    /// If `Dr6` does not have exactly one hwbp flag set, this function will return `None`.
-    pub fn breakpoint_by_dr6(&self, dr6: usize) -> Option<HardwareBreakpoint> {
-        Some(self.breakpoint(Index::by_dr6(dr6)?))
+    /// If `Dr6` does not have exactly one hwbp flag set, this function will return `Err(dr6)`.
+    /// This can happen if multiple breakpoints are triggered on the same instruction, or if the
+    /// `Dr6` register was not reset after a previous hwbp hit.
+    pub fn breakpoint_by_dr6_reset(&mut self) -> Result<HardwareBreakpoint, usize> {
+        let dr6 = context::reset_dr6(&mut self.0);
+        Ok(self.breakpoint(Index::by_dr6(dr6).ok_or(dr6)?))
+    }
+
+    /// Resets `Dr6`.
+    pub fn reset_dr6(&mut self) -> usize {
+        context::reset_dr6(&mut self.0)
     }
 
     /// Clears any currently set hardware breakpoints.
@@ -564,7 +584,7 @@ impl HardwareBreakpoint {
     /// Returns a currently unused hardware breakpoint.
     ///
     /// ```
-    /// # use hwbp::{HardwareBreakpoint, FetchWith};
+    /// # use hwbp::{HardwareBreakpoint, context::FetchWith};
     /// HardwareBreakpoint::unused_with(FetchWith::GetThreadContext)
     ///     .expect("failed to fetch context")
     ///     .expect("no unused breakpoints");
@@ -576,7 +596,7 @@ impl HardwareBreakpoint {
 
 #[cfg(test)]
 mod tests {
-    use crate::{reset_dr6, Condition, HardwareBreakpoint, HwbpContext, Size};
+    use crate::{context, Condition, HardwareBreakpoint, HwbpContext, Size};
     use std::ptr::{null_mut, read_volatile, write_volatile};
     use winapi::um::errhandlingapi::{AddVectoredExceptionHandler, RemoveVectoredExceptionHandler};
     use winapi::um::minwinbase::EXCEPTION_SINGLE_STEP;
@@ -603,7 +623,7 @@ mod tests {
                     FLAG_HITS += 1;
 
                     // Reset the debug status
-                    reset_dr6(cr);
+                    context::reset_dr6(cr);
 
                     return EXCEPTION_CONTINUE_EXECUTION;
                 }
