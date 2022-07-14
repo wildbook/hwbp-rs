@@ -174,6 +174,10 @@ impl<C: BorrowMut<CONTEXT>> HwbpContext<C> {
         context.Dr3 = 0;
     }
 
+    pub fn clear_breakpoint(&mut self, index: Index) {
+        Hwbp::from_index(index).with_enabled(false).apply_to(self);
+    }
+
     pub fn dr6(&self) -> Dr6<PseudoUsize> {
         Dr6(self.0.borrow().Dr6)
     }

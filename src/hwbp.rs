@@ -1,4 +1,6 @@
-use std::ffi::c_void;
+use std::{borrow::BorrowMut, ffi::c_void};
+
+use winapi::um::winnt::CONTEXT;
 
 use crate::{
     context::{ApplyContext, FetchContext, FetchWith},
@@ -24,6 +26,10 @@ impl Hwbp {
             size: Size::One,
             condition: Condition::ReadWrite,
         }
+    }
+
+    pub fn from_index(index: Index) -> Self {
+        Self::new().with_index(index)
     }
 
     #[rustfmt::skip]
@@ -103,6 +109,13 @@ impl Hwbp {
             let mut context = HwbpContext::get_with(fetch)?;
             context.set_breakpoint(self);
             context.apply_with(apply)
+        }
+
+        pub fn apply_to(
+            self,
+            context: &mut HwbpContext<impl BorrowMut<CONTEXT>>,
+        ) {
+            context.set_breakpoint(self);
         }
     }
 
